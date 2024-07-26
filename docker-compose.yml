@@ -183,10 +183,10 @@ services:
       - traefik.http.routers.jellyseerr.middlewares=jellyseerr-stripprefix,jellyseerr-rewrite,jellyseerr-rewriteHeaders
       - traefik.http.middlewares.jellyseerr-stripprefix.stripPrefix.prefixes=/jellyseerr
       - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[0].header=location
-      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[0].regex=^/(.+)$
-      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[0].replacement=/jellyseerr/$1
+      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[0].regex=^/(.+)$$
+      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[0].replacement=/jellyseerr/$$1
       - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[1].header=location
-      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[1].regex=^/$
+      - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[1].regex=^/$$
       - traefik.http.middlewares.jellyseerr-rewriteHeaders.plugin.rewriteHeaders.rewrites[1].replacement=/jellyseerr
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.monitoring.types[0]=text/html
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.monitoring.types[1]=application/javascript
@@ -214,13 +214,13 @@ services:
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[11].regex=src="/os_logo_square.png"
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[11].replacement=src="/jellyseerr/os_logo_square.png"
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[12].regex=href([=:])"/([/a-zA-Z?=]*)"
-      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[12].replacement=href$1"/jellyseerr/$2"
+      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[12].replacement=href$$1"/jellyseerr/$$2"
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[13].regex=linkUrl:"/([/a-zA-Z?=]*)"
-      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[13].replacement=linkUrl:"/jellyseerr/$1"
+      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[13].replacement=linkUrl:"/jellyseerr/$$1"
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[14].regex="/([a-z]+)/".concat
-      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[14].replacement="/jellyseerr/$1/".concat
+      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[14].replacement="/jellyseerr/$$1/".concat
       - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[15].regex=url:"/([/a-zA-Z?=]*)"
-      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[15].replacement=url:"/jellyseerr/$1"
+      - traefik.http.middlewares.jellyseerr-rewrite.plugin.rewrite-body.rewrites[15].replacement=url:"/jellyseerr/$$1"
       
       - homepage.group=Media
       - homepage.name=JellySeerr
@@ -277,13 +277,16 @@ services:
     profiles:
       - flaresolverr
   qbittorrent:
-    image: lscr.io/linuxserver/qbittorrent:libtorrentv1
+    image: lscr.io/linuxserver/qbittorrent
     container_name: qbittorrent
     environment:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
-      - WEBUI_PORT=8080
+      - WEBUI_PORT=${QBITTORRENT_WEBUI_PORT}
+      - TORRENTING_PORT=${QBITTORRENT_TORRENTING_PORT}
+      - USERNAME=${QBITTORRENT_USERNAME}
+      - PASSWORD=${QBITTORRENT_PASSWORD}
       - DOCKER_MODS=ghcr.io/gabe565/linuxserver-mod-vuetorrent
     volumes:
       - ${CONFIG_ROOT:-.}/qbittorrent:/config
@@ -295,10 +298,10 @@ services:
       test: [ "CMD", "curl", "--fail", "http://127.0.0.1:8080", "https://google.com" ]
       interval: 30s
       retries: 10
-    network_mode: "service:vpn"
-    depends_on:
-      vpn:
-        condition: service_healthy
+        #network_mode: "service:vpn"
+      #depends_on:
+      #vpn:
+      # condition: service_healthy
     labels:
       - traefik.enable=true
       - traefik.http.routers.qbittorrent.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/qbittorrent`))
