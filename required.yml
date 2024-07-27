@@ -35,6 +35,22 @@ volumes:
   plex_config:
     external: true
 
+  #Prowlarr config
+  prowlarr_config:
+    external: true
+
+  #Flaresolverr config
+  flaresolverr_config:
+    external: true
+
+  #Traefik config
+  traefik_config:
+    external: true
+
+  #Bazarr config
+  bazarr_config:
+    external: true
+
 
 services:
   qbittorrent:
@@ -44,7 +60,7 @@ services:
       - PUID=${USER_ID}
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
-      - WEBUI_PORT=${QBITTORRENT_WEBUI_PORT}
+      - WEBUI_PORT=${QBITTORRENT_INTERNAL_PORT}
       - TORRENTING_PORT=${QBITTORRENT_TORRENTING_PORT}
       - USERNAME=${QBITTORRENT_USERNAME}
       - PASSWORD=${QBITTORRENT_PASSWORD}
@@ -52,8 +68,11 @@ services:
     volumes:
       - qb_config:/config
       - common_downloads:/downloads
+      - common_videos_movies:/downloads/videos/movies
+      - common_videos_tv:/downloads/videos/tv
+      - common_videos_others:/downloads/videos/others
     ports:
-      - ${QBITTORRENT_WEBUI_PORT}:${QBITTORRENT_WEBUI_PORT}
+      - ${QBITTORRENT_EXTERNAL_PORT}:${QBITTORRENT_INTERNAL_PORT}
       - ${QBITTORRENT_TORRENTING_PORT}:${QBITTORRENT_TORRENTING_PORT}
     restart: always
     healthcheck:
@@ -62,23 +81,23 @@ services:
       test: [ "CMD", "curl", "--fail", "http://127.0.0.1:8080", "https://google.com" ]
       interval: 30s
       retries: 10
-        #network_mode: "service:vpn"
-      #depends_on:
-      #vpn:
-      # condition: service_healthy
     labels:
       - traefik.enable=true
-      - traefik.http.routers.qbittorrent.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/qbittorrent`))
-      - traefik.http.routers.qbittorrent.tls=true
-      - traefik.http.routers.qbittorrent.tls.certresolver=myresolver
-      - traefik.http.services.qbittorrent.loadbalancer.server.port=8080
-      - traefik.http.routers.qbittorrent.middlewares=qbittorrent-strip-slash,qbittorrent-stripprefix
-      # https://github.com/qbittorrent/qBittorrent/issues/5693#issuecomment-552146296
-      - traefik.http.middlewares.qbittorrent-stripprefix.stripPrefix.prefixes=/qbittorrent
-      # https://community.traefik.io/t/middleware-to-add-the-if-needed/1895/19
-      - traefik.http.middlewares.qbittorrent-strip-slash.redirectregex.regex=(^.*\/qbittorrent$$)
-      - traefik.http.middlewares.qbittorrent-strip-slash.redirectregex.replacement=$$1/
-      - traefik.http.middlewares.qbittorrent-strip-slash.redirectregex.permanent=false
+      # adding a slash to the end
+      - traefik.http.routers.qb.entrypoints=web
+      - traefik.http.routers.qb.rule=PathPrefix(`/qb`)
+      - traefik.http.middlewares.qb-redirect.redirectregex.regex=^(.*)/qb$$
+      - traefik.http.middlewares.qb-redirect.redirectregex.replacement=$$1/qb/
+      - traefik.http.middlewares.qb-strip.stripprefix.prefixes=/qb/
+      # appropriate header changes
+      - traefik.http.middlewares.qb-headers.headers.customrequestheaders.X-Frame-Options=SAMEORIGIN
+      - traefik.http.middlewares.qb-headers.headers.customrequestheaders.Referer=
+      - traefik.http.middlewares.qb-headers.headers.customrequestheaders.Origin=
+      - traefik.http.routers.qb.middlewares=qb-strip,qb-redirect,qb-headers
+      # loadbalancer to *not* pass the host header
+      - traefik.http.services.qb.loadbalancer.server.port=1001
+      - traefik.http.services.qb.loadbalancer.passhostheader=false
+      - traefik.docker.network=traefik-qb-net
       #- com.centurylinklabs.watchtower.depends-on=/vpn
       - homepage.group=Download
       - homepage.name=qBittorrent
@@ -99,18 +118,19 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
     volumes:
-      - ${CONFIG_ROOT:-.}/sonarr:/config
-      - ${DATA_ROOT}:/data
+      - sonarr_config:/config
+      - common_videos_tv:/data
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://127.0.0.1:8989/sonarr/ping" ]
       interval: 30s
       retries: 10
+    ports:
+      - ${SONARR_EXTERNAL_PORT}:${SONARR_INTERNAL_PORT}
+
     labels:
       - traefik.enable=true
       - traefik.http.routers.sonarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/sonarr`))
-      - traefik.http.routers.sonarr.tls=true
-      - traefik.http.routers.sonarr.tls.certresolver=myresolver
       - traefik.http.services.sonarr.loadbalancer.server.port=8989
       - homepage.group=Media
       - homepage.name=Sonarr
@@ -129,18 +149,18 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
     volumes:
-      - ${CONFIG_ROOT:-.}/radarr:/config
-      - ${DATA_ROOT}:/data
+      - radarr_config:/config
+      - common_videos_movies:/data
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://127.0.0.1:7878/radarr/ping" ]
       interval: 30s
       retries: 10
+    ports:
+      - ${RADARR_EXTERNAL_PORT}:${RADARR_INTERNAL_PORT}
     labels:
       - traefik.enable=true
       - traefik.http.routers.radarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/radarr`))
-      - traefik.http.routers.radarr.tls=true
-      - traefik.http.routers.radarr.tls.certresolver=myresolver
       - traefik.http.services.radarr.loadbalancer.server.port=7878
       - homepage.group=Media
       - homepage.name=Radarr
@@ -151,6 +171,7 @@ services:
       - homepage.widget.type=radarr
       - homepage.widget.url=http://radarr:7878/radarr
       - homepage.widget.key=${RADARR_API_KEY}
+
   prowlarr:
     image: lscr.io/linuxserver/prowlarr:latest
     container_name: prowlarr
@@ -159,17 +180,17 @@ services:
       - PGID=${GROUP_ID}
       - TZ=${TIMEZONE}
     volumes:
-      - ${CONFIG_ROOT:-.}/prowlarr:/config
+      - prowlarr_config:/config
     restart: always
     healthcheck:
       test: [ "CMD", "curl", "--fail", "http://127.0.0.1:9696/prowlarr/ping" ]
       interval: 30s
       retries: 10
+    ports:
+      - ${PROWLARR_EXTERNAL_PORT}:${PROWLARR_INTERNAL_PORT}
     labels:
       - traefik.enable=true
       - traefik.http.routers.prowlarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/prowlarr`))
-      - traefik.http.routers.prowlarr.tls=true
-      - traefik.http.routers.prowlarr.tls.certresolver=myresolver
       - traefik.http.services.prowlarr.loadbalancer.server.port=9696
       - homepage.group=Download
       - homepage.name=Prowlarr
@@ -181,6 +202,43 @@ services:
       - homepage.widget.url=http://prowlarr:9696/prowlarr
       - homepage.widget.key=${PROWLARR_API_KEY}
   
+  bazarr:
+    image: lscr.io/linuxserver/bazarr
+    container_name: bazarr
+    environment:
+      - PUID=${USER_ID}
+      - PGID=${GROUP_ID}
+      - TZ=${TIMEZONE}
+    volumes:
+      - bazarr_config:/config
+      - common_videos_tv:/data/tv
+      - common_videos_movies:/data/movies
+      - common_downloads:/data/
+      - common_videos_others:/data/others
+    restart: always
+    ports:
+      - ${BAZARR_EXTERNAL_PORT}:${BAZARR_INTERNAL_PORT}
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://127.0.0.1:6767/bazarr/ping" ]
+      interval: 5s
+      retries: 10
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.bazarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/bazarr`))
+      - traefik.http.routers.bazarr.tls=true
+      - traefik.http.routers.bazarr.tls.certresolver=myresolver
+      - traefik.http.services.bazarr.loadbalancer.server.port=${BAZARR_EXTERNAL_PORT}
+
+      - homepage.group=Download
+      - homepage.name=Bazarr
+      - homepage.icon=bazarr.png
+      - homepage.href=/bazarr
+      - homepage.description=Subtitles management
+      - homepage.weight=4
+      - homepage.widget.type=bazarr
+      - homepage.widget.url=http://bazarr:6767/bazarr
+      - homepage.widget.key=${BAZARR_API_KEY}
+
   plex:
     image: lscr.io/linuxserver/plex
     container_name: plex
@@ -194,11 +252,75 @@ services:
       - common_videos_movies:/data/movies
       - common_videos_tv:/data/tv
     ports:
-      - ${PLEX_INTERNAL_PORT}:${PLEX_INTERNAL_PORT}
+      - ${PLEX_EXTERNAL_PORT}:${PLEX_INTERNAL_PORT}
       - 1900:1900/udp # For DLNA server
       - 32469:32469/tcp #For DLNA server
     restart: unless-stopped
 
+  flaresolverr:
+    image: flaresolverr/flaresolverr
+    container_name: flaresolverr
+    restart: always
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_HTML=${LOG_HTML:-false}
+      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
+      - TZ=${TIMEZONE}
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.flaresolverr.rule=PathPrefix(`/flaresolverr`)
+      - traefik.http.services.flaresolverr.loadbalancer.server.port=8191
+    profiles:
+      - flaresolverr
+    ports:
+      - ${FLARESOLVERR_EXTERNAL_PORT}:${FLARESOLVERR_INTERNAL_PORT}
+
+  traefik:
+    image: traefik
+    container_name: traefik
+    restart: always
+    environment:
+      - CLOUDFLARE_EMAIL=${CLOUDFLARE_EMAIL}
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+      - CLOUDFLARE_ZONE_API_TOKEN=${CLOUDFLARE_ZONE_API_TOKEN}
+      - LETS_ENCRYPT_EMAIL=${LETS_ENCRYPT_EMAIL}
+    command:
+      - --ping=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web-secure.address=:443
+      - --experimental.plugins.rewrite-body.modulename=github.com/packruler/rewrite-body
+      - --experimental.plugins.rewrite-body.version=v1.2.0
+      - --experimental.plugins.rewriteHeaders.modulename=github.com/XciD/traefik-plugin-rewrite-headers
+      - --experimental.plugins.rewriteHeaders.version=v0.0.3
+      - --certificatesresolvers.myresolver.acme.dnschallenge=${DNS_CHALLENGE:-true}
+      - --certificatesresolvers.myresolver.acme.dnschallenge.provider=${DNS_CHALLENGE_PROVIDER:-cloudflare}
+      - --certificatesresolvers.myresolver.acme.dnschallenge.resolvers=1.1.1.1:53,8.8.8.8:53
+      - --certificatesresolvers.myresolver.acme.caserver=${LETS_ENCRYPT_CA_SERVER:-https://acme-v02.api.letsencrypt.org/directory}
+      - --certificatesresolvers.myresolver.acme.email=${LETS_ENCRYPT_EMAIL}
+      - --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
+      - --log.level=ERROR
+    ports:
+      - "80:80"
+        #- "443:443"
+    volumes:
+      - traefik_config:/letsencrypt
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    extra_hosts:
+      - host.docker.internal:172.17.0.1
+    healthcheck:
+      test: [ "CMD", "traefik", "healthcheck", "--ping" ]
+      interval: 30s
+      retries: 10
+  whoami:
+    image: traefik/whoami
+    container_name: simple-service
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.whoami.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/whoami`))
+      - traefik.http.services.whoami.loadbalancer.server.port=80
+      - traefik.http.services.whoami.loadbalancer.server.scheme=http
 networks:
   default:
     name: docker-compose-nas
