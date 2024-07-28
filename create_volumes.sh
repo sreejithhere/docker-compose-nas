@@ -24,13 +24,21 @@ common_videos_others=${base_data_folder}/videos/others
 qb_config=${base_data_folder}/qbittorrent/config
 sonarr_config=${base_data_folder}/sonarr/config
 radarr_config=${base_data_folder}/radarr/config
-overseerr_config=${base_data_folder}/overseerr_config
+overseerr_config=${base_data_folder}/overseerr/config
 jackett_config=${base_data_folder}/jackett/config
 plex_config=${base_data_folder}/plex/config
 prowlarr_config=${base_data_folder}/prowlarr/config
 flaresolverr_config=${base_data_folder}/flaresolverr/config
 traefik_config=${base_data_folder}/traefik/config
 bazarr_config=${base_data_folder}/bazarr/config
+homepage_config=${base_data_folder}/homepage/config
+
+
+docker volume create -d local \
+	-o type=none \
+	-o o=bind \
+	-o device=${base_data_folder} \
+	common_data
 
 echo "Creating $common_downloads"
 mkdir -p $common_downloads && \
@@ -144,3 +152,11 @@ mkdir -p $bazarr_config && \
 		-o o=bind \
 		-o device=${base_data_folder}/bazarr/config \
 		bazarr_config
+
+echo "Creating $homepage_config"
+mkdir -p $homepage_config && \
+	docker volume create -d local \
+		-o type=none \
+		-o o=bind \
+		-o device=${base_data_folder}/homepage/config \
+		homepage_config

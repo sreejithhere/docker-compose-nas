@@ -2,6 +2,8 @@ version: "3.3"
 
 volumes:
   # Common volumes shared by all containers
+  common_data:
+    external: true
   common_downloads:
     external: true
   common_videos_tv:
@@ -50,6 +52,11 @@ volumes:
   #Bazarr config
   bazarr_config:
     external: true
+
+  # Homepage config
+  homepage_config:
+    external: true
+
 
 
 services:
@@ -313,14 +320,34 @@ services:
       test: [ "CMD", "traefik", "healthcheck", "--ping" ]
       interval: 30s
       retries: 10
-  whoami:
-    image: traefik/whoami
-    container_name: simple-service
+
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    environment:
+      - HOMEPAGE_VAR_TITLE=${HOMEPAGE_VAR_TITLE}
+      - HOMEPAGE_VAR_SEARCH_PROVIDER=${HOMEPAGE_VAR_SEARCH_PROVIDER}
+      - HOMEPAGE_VAR_HEADER_STYLE=${HOMEPAGE_VAR_HEADER_STYLE}
+      - HOMEPAGE_VAR_WEATHER_CITY=${HOMEPAGE_VAR_WEATHER_CITY}
+      - HOMEPAGE_VAR_WEATHER_LAT=${HOMEPAGE_VAR_WEATHER_LAT}
+      - HOMEPAGE_VAR_WEATHER_LONG=${HOMEPAGE_VAR_WEATHER_LONG}
+      - HOMEPAGE_VAR_WEATHER_TIME=${TIMEZONE}
+      - HOMEPAGE_VAR_WEATHER_UNIT=${HOMEPAGE_VAR_WEATHER_UNIT}
+    volumes:
+      - homepage_config:/app/config
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - common_data:/data
+
+    ports:
+      - $HOMEPAGE_EXTERNAL_PORT:$HOMEPAGE_INTERNAL_PORT
+    restart: always
+    command: [sh, -c, "cp -n /app/config/tpl/*.yaml /app/config && node server.js"]
     labels:
       - traefik.enable=true
-      - traefik.http.routers.whoami.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/whoami`))
-      - traefik.http.services.whoami.loadbalancer.server.port=80
-      - traefik.http.services.whoami.loadbalancer.server.scheme=http
+      - traefik.http.routers.homepage.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/`))
+      - traefik.http.routers.homepage.tls=false
+      - traefik.http.routers.homepage.tls.certresolver=myresolver
+      - traefik.http.services.homepage.loadbalancer.server.port=$HOMEPAGE_EXTERNAL_PORT
 networks:
   default:
     name: docker-compose-nas
