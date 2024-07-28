@@ -160,3 +160,5 @@ mkdir -p $homepage_config && \
 		-o o=bind \
 		-o device=${base_data_folder}/homepage/config \
 		homepage_config
+echo "Copying homepage scripts to the volume"
+cp -r ./homepage/* ${homepage_config}

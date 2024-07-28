@@ -1,5 +1,3 @@
-version: "3.3"
-
 volumes:
   # Common volumes shared by all containers
   common_data:
@@ -113,7 +111,7 @@ services:
       - homepage.description=Bittorrent client
       - homepage.weight=2
       - homepage.widget.type=qbittorrent
-      - homepage.widget.url=http://vpn:8080
+      - homepage.widget.url=http://qbittorrent:1001
       - homepage.widget.username=${QBITTORRENT_USERNAME}
       - homepage.widget.password=${QBITTORRENT_PASSWORD}
 
@@ -134,20 +132,28 @@ services:
       retries: 10
     ports:
       - ${SONARR_EXTERNAL_PORT}:${SONARR_INTERNAL_PORT}
-
     labels:
+      #- traefik.enable=true
+      #- traefik.http.routers.sonarr.entrypoints=web
+      #- traefik.http.routers.sonarr.port=8989
+      #- traefik.http.routers.sonarr.rule=PathPrefix(`/sonarr`)
+      #- traefik.http.middlewares.sonarr-redirect.redirectregex.regex=^(.*)/sonarr$$
+      #- traefik.http.middlewares.sonarr-redirect.redirectregex.replacement=$$1/sonarr/
+      #- traefik.http.middlewares.sonarr-strip.stripprefix.prefixes=/sonarr/
+      #- traefik.http.services.sonarr.loadbalancer.server.port=8989
       - traefik.enable=true
-      - traefik.http.routers.sonarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/sonarr`))
-      - traefik.http.services.sonarr.loadbalancer.server.port=8989
+      - traefik.frontend.rule=PathPrefix(`/sonar`)
+      - traefik.port=8989
       - homepage.group=Media
       - homepage.name=Sonarr
       - homepage.icon=sonarr.png
-      - homepage.href=/sonarr
+      - homepage.href=http://localhost:8989/
       - homepage.description=Series management
       - homepage.weight=0
       - homepage.widget.type=sonarr
-      - homepage.widget.url=http://sonarr:8989/sonarr
+      - homepage.widget.url=http://localhost:8989/sonarr
       - homepage.widget.key=${SONARR_API_KEY}
+
   radarr:
     image: lscr.io/linuxserver/radarr
     container_name: radarr
@@ -166,7 +172,7 @@ services:
     ports:
       - ${RADARR_EXTERNAL_PORT}:${RADARR_INTERNAL_PORT}
     labels:
-      - traefik.enable=true
+      - traefik.enable=false
       - traefik.http.routers.radarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/radarr`))
       - traefik.http.services.radarr.loadbalancer.server.port=7878
       - homepage.group=Media
@@ -196,7 +202,7 @@ services:
     ports:
       - ${PROWLARR_EXTERNAL_PORT}:${PROWLARR_INTERNAL_PORT}
     labels:
-      - traefik.enable=true
+      - traefik.enable=false
       - traefik.http.routers.prowlarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/prowlarr`))
       - traefik.http.services.prowlarr.loadbalancer.server.port=9696
       - homepage.group=Download
@@ -230,7 +236,7 @@ services:
       interval: 5s
       retries: 10
     labels:
-      - traefik.enable=true
+      - traefik.enable=false
       - traefik.http.routers.bazarr.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/bazarr`))
       - traefik.http.routers.bazarr.tls=true
       - traefik.http.routers.bazarr.tls.certresolver=myresolver
@@ -263,6 +269,14 @@ services:
       - 1900:1900/udp # For DLNA server
       - 32469:32469/tcp #For DLNA server
     restart: unless-stopped
+    labels:
+      - homepage.group=Media
+      - homepage.name=Plex
+      - homepage.icon=plex.png
+      - homepage.description=Please Media Server
+      - homepage.weight=5
+      - homepage.widget.type=plex
+      - homepage.widget.url=http://plex:32400/web/index.html
 
   flaresolverr:
     image: flaresolverr/flaresolverr
@@ -274,7 +288,7 @@ services:
       - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
       - TZ=${TIMEZONE}
     labels:
-      - traefik.enable=true
+      - traefik.enable=false
       - traefik.http.routers.flaresolverr.rule=PathPrefix(`/flaresolverr`)
       - traefik.http.services.flaresolverr.loadbalancer.server.port=8191
     profiles:
@@ -283,6 +297,8 @@ services:
       - ${FLARESOLVERR_EXTERNAL_PORT}:${FLARESOLVERR_INTERNAL_PORT}
 
   traefik:
+    profiles:
+      - donotstart
     image: traefik
     container_name: traefik
     restart: always
@@ -338,12 +354,12 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - common_data:/data
 
+    command: [sh, -c, "cp -n /app/config/tpl/*.yaml /app/config && node server.js"]
     ports:
       - $HOMEPAGE_EXTERNAL_PORT:$HOMEPAGE_INTERNAL_PORT
-    restart: always
-    command: [sh, -c, "cp -n /app/config/tpl/*.yaml /app/config && node server.js"]
+        #restart: always
     labels:
-      - traefik.enable=true
+      - traefik.enable=false
       - traefik.http.routers.homepage.rule=(Host(`${HOSTNAME}`) && PathPrefix(`/`))
       - traefik.http.routers.homepage.tls=false
       - traefik.http.routers.homepage.tls.certresolver=myresolver
